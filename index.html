@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paris Tactical RPG 3D - Rioters vs Police</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            font-family: 'Courier New', monospace;
+            color: #fff;
+            overflow: hidden;
+        }
+        
+        #gameContainer {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        #gameCanvas {
+            display: block;
+            cursor: crosshair;
+        }
+        
+        #ui {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 100;
+        }
+        
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #444;
+            border-radius: 8px;
+            padding: 15px;
+            min-width: 250px;
+            pointer-events: auto;
+        }
+        
+        #unitInfo {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #444;
+            border-radius: 8px;
+            padding: 15px;
+            min-width: 200px;
+            max-height: 300px;
+            overflow-y: auto;
+            pointer-events: auto;
+        }
+        
+        #combatLog {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #444;
+            border-radius: 8px;
+            padding: 15px;
+            width: 400px;
+            height: 150px;
+            overflow-y: auto;
+            pointer-events: auto;
+        }
+        
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #444;
+            border-radius: 8px;
+            padding: 15px;
+            pointer-events: auto;
+        }
+        
+        .health-bar {
+            width: 100px;
+            height: 8px;
+            background: #333;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 5px 0;
+        }
+        
+        .health-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff4444, #ffaa44, #44ff44);
+            transition: width 0.3s ease;
+        }
+        
+        .ap-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin: 2px;
+            background: #444;
+        }
+        
+        .ap-indicator.active {
+            background: #ffff44;
+            box-shadow: 0 0 6px #ffff44;
+        }
+        
+        h2 {
+            margin: 0 0 10px 0;
+            color: #00ff88;
+            text-shadow: 0 0 8px #00ff88;
+        }
+        
+        h3 {
+            margin: 10px 0 5px 0;
+            color: #88aaff;
+        }
+        
+        .faction-rioter {
+            color: #ff6666;
+        }
+        
+        .faction-police {
+            color: #6666ff;
+        }
+        
+        .ability-button {
+            background: #333;
+            color: #fff;
+            border: 1px solid #666;
+            padding: 5px 10px;
+            margin: 2px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        
+        .ability-button:hover {
+            background: #555;
+            border-color: #888;
+        }
+        
+        .ability-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        #gameOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+        }
+        
+        .game-over-content {
+            text-align: center;
+            background: rgba(20, 20, 20, 0.9);
+            padding: 40px;
+            border-radius: 12px;
+            border: 3px solid #666;
+        }
+        
+        .victory {
+            color: #44ff44;
+            text-shadow: 0 0 20px #44ff44;
+        }
+        
+        .defeat {
+            color: #ff4444;
+            text-shadow: 0 0 20px #ff4444;
+        }
+        
+        button {
+            background: #444;
+            color: #fff;
+            border: 2px solid #666;
+            padding: 10px 20px;
+            margin: 10px;
+            cursor: pointer;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        
+        button:hover {
+            background: #666;
+            border-color: #888;
+        }
+        
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 150;
+            border: 1px solid #444;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="ui">
+            <div id="hud">
+                <h2>Paris Tactical RPG 3D</h2>
+                <div id="turnInfo">
+                    <strong>Turn <span id="turnNumber">1</span></strong><br>
+                    <span id="currentFaction" class="faction-rioter">RIOTERS</span>
+                </div>
+                <div id="gameStats" style="margin-top: 10px;">
+                    <div>Rioters: <span id="rioterCount">5</span></div>
+                    <div>Police: <span id="policeCount">5</span></div>
+                </div>
+            </div>
+            
+            <div id="unitInfo">
+                <h3>Unit Information</h3>
+                <div id="selectedUnitData">
+                    <p>Select a unit to view details</p>
+                </div>
+            </div>
+            
+            <div id="combatLog">
+                <h3>Combat Log</h3>
+                <div id="logContent"></div>
+            </div>
+            
+            <div id="controls">
+                <h3>Controls</h3>
+                <div><strong>Mouse:</strong> Select/Move units</div>
+                <div><strong>E:</strong> Enter attack mode</div>
+                <div><strong>Q:</strong> Enter ability mode</div>
+                <div><strong>H:</strong> Unit help</div>
+                <div><strong>ESC:</strong> Cancel targeting</div>
+                <div><strong>Space:</strong> End turn</div>
+                <div><strong>WASD:</strong> Camera movement</div>
+                <div><strong>Mouse Wheel:</strong> Zoom</div>
+                <div style="margin-top: 10px;">
+                    <button id="endTurnBtn">End Turn</button>
+                    <button id="helpBtn">Help</button>
+                </div>
+            </div>
+        </div>
+        
+        <div id="gameOverlay">
+            <div class="game-over-content">
+                <h1 id="gameOverTitle">Game Over</h1>
+                <p id="gameOverMessage">The battle has ended!</p>
+                <button onclick="location.reload()">Play Again</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="game3d.js"></script>
+</body>
+</html>
