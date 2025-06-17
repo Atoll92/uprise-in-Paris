@@ -55,13 +55,20 @@ let validTargets = [];
 let mapGroup, unitsGroup, effectsGroup, highlightGroup;
 let gridHelper, tiles = [];
 
-// Materials
+// Materials and textures
 let materials = {};
+let textures = {};
+
+// Audio system
+let audioContext;
+let sounds = {};
+let soundEnabled = true;
 
 // Camera and controls
 let cameraTarget = new THREE.Vector3(MAP_WIDTH, 0, MAP_HEIGHT / 2);
 let cameraDistance = 25;
 let cameraAngle = 0;
+let frustumSize = 30;
 
 class Position {
     constructor(x, y) {
@@ -373,7 +380,6 @@ function initThreeJS() {
     
     // Camera - Isometric view
     const aspect = window.innerWidth / window.innerHeight;
-    const frustumSize = 30;
     camera = new THREE.OrthographicCamera(
         frustumSize * aspect / -2, frustumSize * aspect / 2,
         frustumSize / 2, frustumSize / -2,
@@ -443,10 +449,90 @@ function setupLighting() {
     scene.add(pointLight);
 }
 
+// Initialize audio system
+function initAudio() {
+    try {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        
+        // Create sound effects using Web Audio API
+        sounds = {
+            select: createTone(440, 0.1, 0.05),
+            move: createTone(330, 0.15, 0.1),
+            attack: createNoise(0.2, 0.15),
+            damage: createTone(220, 0.3, 0.2),
+            heal: createTone(660, 0.2, 0.15),
+            ability: createTone(550, 0.25, 0.2),
+            victory: createTone(880, 0.5, 0.3),
+            defeat: createTone(110, 0.8, 0.4)
+        };
+        
+        console.log('Audio system initialized');
+    } catch (error) {
+        console.warn('Audio not supported:', error);
+        soundEnabled = false;
+    }
+}
+
+function createTone(frequency, duration, volume = 0.1) {
+    return () => {
+        if (!soundEnabled || !audioContext) return;
+        
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+        oscillator.type = 'sine';
+        
+        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+        gainNode.gain.linearRampToValueAtTime(volume, audioContext.currentTime + 0.01);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
+        
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + duration);
+    };
+}
+
+function createNoise(duration, volume = 0.1) {
+    return () => {
+        if (!soundEnabled || !audioContext) return;
+        
+        const bufferSize = audioContext.sampleRate * duration;
+        const buffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+        const data = buffer.getChannelData(0);
+        
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = (Math.random() * 2 - 1) * volume;
+        }
+        
+        const source = audioContext.createBufferSource();
+        const gainNode = audioContext.createGain();
+        
+        source.buffer = buffer;
+        source.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
+        
+        source.start(audioContext.currentTime);
+    };
+}
+
+function playSound(soundName) {
+    if (sounds[soundName]) {
+        sounds[soundName]();
+    }
+}
+
+
 function createMaterials() {
+    // Initialize materials first
     materials = {
-        // Tile materials
-        empty: new THREE.MeshLambertMaterial({ color: 0xcccccc }),
+        // Tile materials - 'empty' material will be updated asynchronously
+        empty: new THREE.MeshLambertMaterial({ color: 0xA69B8A }), // Match cobblestone mid-tone gray
         wall: new THREE.MeshLambertMaterial({ color: 0x555555 }),
         fullCover: new THREE.MeshLambertMaterial({ color: 0x8B4513 }),
         halfCover: new THREE.MeshLambertMaterial({ color: 0xA0A0A0 }),
@@ -464,6 +550,59 @@ function createMaterials() {
         healthRed: new THREE.MeshBasicMaterial({ color: 0xff0000 }),
         healthBg: new THREE.MeshBasicMaterial({ color: 0x333333 })
     };
+
+    // Load texture for the ground (EMPTY tiles)
+    const textureLoader = new THREE.TextureLoader();
+    console.log('Attempting to load texture: parisian-street-diffuse.jpg');
+    console.log('Current URL:', window.location.href);
+    
+    // Try to load the texture - works with HTTP server (python -m http.server 8000)
+    textureLoader.load(
+        'parisian-street-diffuse.jpg',
+        function(groundTexture) {
+            console.log('SUCCESS: Texture loaded successfully!');
+            // Repeat the texture if needed for larger areas
+            groundTexture.wrapS = THREE.RepeatWrapping;
+            groundTexture.wrapT = THREE.RepeatWrapping;
+            groundTexture.repeat.set(1, 1); // Larger cobblestone patterns
+            
+            // Update the existing material with texture and natural cobblestone color
+            materials.empty.map = groundTexture;
+            materials.empty.color.setHex(0xB8AE9C); // Natural cobblestone beige tone
+            materials.empty.needsUpdate = true;
+            
+            // Recreate the map if it was already rendered with the old material
+            if (gameMap) {
+                console.log('Recreating 3D map with texture...');
+                create3DMap(); // This will recreate tile meshes with the new material
+            }
+            
+            addCombatLog('Street texture loaded successfully!');
+            addCombatLog('Cobblestone patterns now visible on streets');
+        },
+        function(progress) {
+            console.log('Loading texture progress:', (progress.loaded / progress.total * 100) + '%');
+        },
+        function(err) {
+            console.error('FAILED: Could not load texture due to CORS restrictions');
+            console.log('SOLUTION: Please run a local HTTP server to load textures');
+            console.log('Run: cd "/Users/arthur/uprise in Paris" && python3 -m http.server 8000');
+            console.log('Then open: http://localhost:8000');
+            
+            // Update fallback material to match cobblestone colors
+            materials.empty.color.setHex(0xA69B8A); // Match cobblestone mid-tone gray
+            materials.empty.needsUpdate = true;
+            
+            // Force recreation of the map with new color
+            if (gameMap) {
+                create3DMap();
+            }
+            
+            addCombatLog('Texture loading failed - using fallback color');
+            addCombatLog('For best experience: Run HTTP server');
+            addCombatLog('Command: python3 -m http.server 8000');
+        }
+    );
 }
 
 function create3DMap() {
@@ -494,7 +633,7 @@ function createTileMesh(tileType, x, y) {
     switch (tileType) {
         case TileType.EMPTY:
             geometry = new THREE.BoxGeometry(GRID_SIZE * 0.9, TILE_HEIGHT, GRID_SIZE * 0.9);
-            material = materials.empty;
+            material = materials.empty; // Use the dynamically loaded empty material
             break;
             
         case TileType.WALL:
@@ -630,6 +769,9 @@ function setupEventListeners() {
     // UI events
     document.getElementById('endTurnBtn').addEventListener('click', endTurn);
     document.getElementById('helpBtn').addEventListener('click', showHelp);
+    document.getElementById('soundToggle').addEventListener('click', toggleSound);
+    document.getElementById('zoomInBtn').addEventListener('click', zoomIn);
+    document.getElementById('zoomOutBtn').addEventListener('click', zoomOut);
     
     // Window resize
     window.addEventListener('resize', onWindowResize);
@@ -744,36 +886,38 @@ function onKeyDown(event) {
             }
             break;
             
-        // Camera controls
-        case 'KeyW':
+        // Camera controls - Arrow keys
+        case 'ArrowUp':
             cameraTarget.z -= 2;
             updateCamera();
             break;
-        case 'KeyS':
+        case 'ArrowDown':
             cameraTarget.z += 2;
             updateCamera();
             break;
-        case 'KeyA':
+        case 'ArrowLeft':
             cameraTarget.x -= 2;
             updateCamera();
             break;
-        case 'KeyD':
+        case 'ArrowRight':
             cameraTarget.x += 2;
             updateCamera();
+            break;
+            
+        // Zoom controls
+        case 'Equal':
+        case 'NumpadAdd':
+            zoomIn();
+            break;
+        case 'Minus':
+        case 'NumpadSubtract':
+            zoomOut();
             break;
     }
 }
 
 function onWindowResize() {
-    const aspect = window.innerWidth / window.innerHeight;
-    const frustumSize = 30;
-    
-    camera.left = frustumSize * aspect / -2;
-    camera.right = frustumSize * aspect / 2;
-    camera.top = frustumSize / 2;
-    camera.bottom = frustumSize / -2;
-    camera.updateProjectionMatrix();
-    
+    updateCameraProjection();
     renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
@@ -786,12 +930,34 @@ function updateCamera() {
     camera.lookAt(cameraTarget);
 }
 
+function zoomIn() {
+    frustumSize = Math.max(10, frustumSize - 2);
+    updateCameraProjection();
+    console.log('Zoom in - frustumSize:', frustumSize);
+}
+
+function zoomOut() {
+    frustumSize = Math.min(60, frustumSize + 2);
+    updateCameraProjection();
+    console.log('Zoom out - frustumSize:', frustumSize);
+}
+
+function updateCameraProjection() {
+    const aspect = window.innerWidth / window.innerHeight;
+    camera.left = frustumSize * aspect / -2;
+    camera.right = frustumSize * aspect / 2;
+    camera.top = frustumSize / 2;
+    camera.bottom = frustumSize / -2;
+    camera.updateProjectionMatrix();
+}
+
 function selectUnit(unit) {
     selectedUnit = unit;
     exitTargetingMode(); // Clear any active targeting
     updateHighlights();
     updateUI();
     addCombatLog(`Selected ${unit.getName()}`);
+    playSound('select');
 }
 
 function updateHighlights() {
@@ -862,6 +1028,7 @@ function tryMoveUnit(targetPos) {
         updateHighlights();
         updateUI();
         addCombatLog(`${selectedUnit.getName()} moves to (${targetPos.x}, ${targetPos.y})`);
+        playSound('move');
     }
 }
 
@@ -901,6 +1068,7 @@ function enterAttackMode() {
     targetingMode = 'attack';
     updateTargetHighlights();
     addCombatLog(`${selectedUnit.getName()} - Select target to attack (ESC to cancel)`);
+    playSound('select');
 }
 
 function enterAbilityMode() {
@@ -1043,6 +1211,8 @@ function handleTargetedAbility(targetPos) {
 function useMolotovAbilityTargeted(centerPos) {
     if (selectedUnit.ap < 1) return;
     
+    playSound('ability');
+    
     // Create fire in 3x3 area around target position
     for (let dx = -1; dx <= 1; dx++) {
         for (let dy = -1; dy <= 1; dy++) {
@@ -1136,6 +1306,10 @@ function tryAttack(target) {
         
         const coverText = coverReduction > 0 ? ` (through ${Math.floor(coverReduction * 100)}% cover)` : '';
         addCombatLog(`${selectedUnit.getName()} deals ${damage} damage to ${target.getName()}${coverText}`);
+        
+        // Play sound effects
+        playSound('attack');
+        setTimeout(() => playSound('damage'), 200);
         
         if (!target.alive) {
             gameMap.removeUnit(target);
@@ -1246,6 +1420,7 @@ function useHealAbility() {
     
     if (healed.length > 0) {
         addCombatLog(`${selectedUnit.getName()} heals: ${healed.join(', ')}`);
+        playSound('heal');
     } else {
         addCombatLog(`${selectedUnit.getName()} finds no allies to heal`);
     }
@@ -1672,6 +1847,17 @@ function checkWinConditions() {
     }
 }
 
+function toggleSound() {
+    soundEnabled = !soundEnabled;
+    const button = document.getElementById('soundToggle');
+    button.textContent = soundEnabled ? '🔊 Sound: ON' : '🔇 Sound: OFF';
+    
+    // Resume audio context if needed (browsers often require user interaction)
+    if (soundEnabled && audioContext && audioContext.state === 'suspended') {
+        audioContext.resume();
+    }
+}
+
 function showGameOver(title, message, type) {
     const overlay = document.getElementById('gameOverlay');
     const titleElement = document.getElementById('gameOverTitle');
@@ -1682,6 +1868,13 @@ function showGameOver(title, message, type) {
     messageElement.textContent = message;
     
     overlay.style.display = 'flex';
+    
+    // Play victory or defeat sound
+    if (type === 'victory') {
+        playSound('victory');
+    } else {
+        playSound('defeat');
+    }
 }
 
 function showHelp() {
@@ -1851,6 +2044,7 @@ function animate() {
 
 // Initialize game
 function initGame() {
+    initAudio();
     initThreeJS();
     setupEventListeners();
     
