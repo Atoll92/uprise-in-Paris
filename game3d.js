@@ -376,7 +376,8 @@ class GameMap {
 function initThreeJS() {
     // Scene
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x1a1a2e);
+    scene.background = new THREE.Color(0x87CEEB); // Sky blue background for daytime Parisian atmosphere
+    scene.fog = new THREE.Fog(0x87CEEB, 50, 200); // Add atmospheric fog
     
     // Camera - Isometric view
     const aspect = window.innerWidth / window.innerHeight;
@@ -425,11 +426,11 @@ function initThreeJS() {
 }
 
 function setupLighting() {
-    // Ambient light
-    const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+    // Bright ambient light to ensure whole scene is visible
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); // Bright white ambient light
     scene.add(ambientLight);
     
-    // Directional light (sun)
+    // Main directional light (sun)
     const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
     directionalLight.position.set(50, 50, 25);
     directionalLight.castShadow = true;
@@ -443,10 +444,14 @@ function setupLighting() {
     directionalLight.shadow.camera.bottom = -50;
     scene.add(directionalLight);
     
-    // Point light for dramatic effect
-    const pointLight = new THREE.PointLight(0xff6600, 0.5, 100);
-    pointLight.position.set(10, 10, 8);
-    scene.add(pointLight);
+    // Secondary fill light to eliminate dark spots
+    const fillLight = new THREE.DirectionalLight(0xffffff, 0.4);
+    fillLight.position.set(-30, 40, -20);
+    scene.add(fillLight);
+    
+    // Hemisphere light for natural outdoor lighting
+    const hemisphereLight = new THREE.HemisphereLight(0x87CEEB, 0x545454, 0.6);
+    scene.add(hemisphereLight);
 }
 
 // Initialize audio system
@@ -531,8 +536,12 @@ function playSound(soundName) {
 function createMaterials() {
     // Initialize materials first
     materials = {
-        // Tile materials - 'empty' material will be updated asynchronously
-        empty: new THREE.MeshLambertMaterial({ color: 0xA69B8A }), // Match cobblestone mid-tone gray
+        // Tile materials - enhanced for Parisian street atmosphere
+        empty: new THREE.MeshLambertMaterial({ 
+            color: 0x6B6B6B, // Darker asphalt color
+            roughness: 0.8,
+            metalness: 0.1
+        }),
         wall: new THREE.MeshLambertMaterial({ color: 0x555555 }),
         fullCover: new THREE.MeshLambertMaterial({ color: 0x8B4513 }),
         halfCover: new THREE.MeshLambertMaterial({ color: 0xA0A0A0 }),
@@ -566,9 +575,9 @@ function createMaterials() {
             groundTexture.wrapT = THREE.RepeatWrapping;
             groundTexture.repeat.set(1, 1); // Larger cobblestone patterns
             
-            // Update the existing material with texture and natural cobblestone color
+            // Update the existing material with texture and natural street color
             materials.empty.map = groundTexture;
-            materials.empty.color.setHex(0xB8AE9C); // Natural cobblestone beige tone
+            materials.empty.color.setHex(0x7A7A7A); // Parisian asphalt gray tone
             materials.empty.needsUpdate = true;
             
             // Recreate the map if it was already rendered with the old material
@@ -589,8 +598,8 @@ function createMaterials() {
             console.log('Run: cd "/Users/arthur/uprise in Paris" && python3 -m http.server 8000');
             console.log('Then open: http://localhost:8000');
             
-            // Update fallback material to match cobblestone colors
-            materials.empty.color.setHex(0xA69B8A); // Match cobblestone mid-tone gray
+            // Update fallback material to match Parisian street colors
+            materials.empty.color.setHex(0x6B6B6B); // Match darker asphalt gray
             materials.empty.needsUpdate = true;
             
             // Force recreation of the map with new color
@@ -627,6 +636,237 @@ function create3DMap() {
     }
 }
 
+function createHaussmannianBuilding(x, y) {
+    const buildingGroup = new THREE.Group();
+    
+    // Main building structure (cream/beige Haussmannian color)
+    const buildingGeometry = new THREE.BoxGeometry(GRID_SIZE * 0.95, GRID_SIZE * 3, GRID_SIZE * 0.95);
+    const buildingMaterial = new THREE.MeshLambertMaterial({ color: 0xF5E6D3 }); // Cream color
+    const building = new THREE.Mesh(buildingGeometry, buildingMaterial);
+    building.position.y = GRID_SIZE * 1.5;
+    building.castShadow = true;
+    building.receiveShadow = true;
+    buildingGroup.add(building);
+    
+    // Mansard roof (dark gray slate)
+    const roofGeometry = new THREE.ConeGeometry(GRID_SIZE * 0.7, GRID_SIZE * 0.4, 4);
+    const roofMaterial = new THREE.MeshLambertMaterial({ color: 0x404040 });
+    const roof = new THREE.Mesh(roofGeometry, roofMaterial);
+    roof.position.y = GRID_SIZE * 3.2;
+    roof.rotation.y = Math.PI / 4; // Rotate 45 degrees for diamond shape
+    roof.castShadow = true;
+    buildingGroup.add(roof);
+    
+    // Windows (dark blue/black)
+    const windowMaterial = new THREE.MeshLambertMaterial({ color: 0x1a1a3a });
+    const windowGeometry = new THREE.BoxGeometry(0.2, 0.3, 0.05);
+    
+    // Add windows on different floors
+    for (let floor = 0; floor < 3; floor++) {
+        const windowY = GRID_SIZE * (0.8 + floor * 0.8);
+        
+        // Front face windows
+        for (let i = -1; i <= 1; i += 2) {
+            const window1 = new THREE.Mesh(windowGeometry, windowMaterial);
+            window1.position.set(i * 0.3, windowY, GRID_SIZE * 0.48);
+            buildingGroup.add(window1);
+        }
+        
+        // Side face windows
+        for (let i = -1; i <= 1; i += 2) {
+            const window2 = new THREE.Mesh(windowGeometry, windowMaterial);
+            window2.position.set(GRID_SIZE * 0.48, windowY, i * 0.3);
+            window2.rotation.y = Math.PI / 2;
+            buildingGroup.add(window2);
+        }
+    }
+    
+    // Wrought iron balconies (dark metal)
+    const balconyMaterial = new THREE.MeshLambertMaterial({ color: 0x2C2C2C });
+    const balconyGeometry = new THREE.BoxGeometry(0.8, 0.05, 0.15);
+    
+    for (let floor = 1; floor < 3; floor++) {
+        const balconyY = GRID_SIZE * (0.65 + floor * 0.8);
+        const balcony = new THREE.Mesh(balconyGeometry, balconyMaterial);
+        balcony.position.set(0, balconyY, GRID_SIZE * 0.52);
+        buildingGroup.add(balcony);
+        
+        // Balcony railings
+        const railingGeometry = new THREE.BoxGeometry(0.8, 0.2, 0.02);
+        const railing = new THREE.Mesh(railingGeometry, balconyMaterial);
+        railing.position.set(0, balconyY + 0.1, GRID_SIZE * 0.58);
+        buildingGroup.add(railing);
+    }
+    
+    // Ground floor shop front (different color)
+    const shopGeometry = new THREE.BoxGeometry(GRID_SIZE * 0.9, GRID_SIZE * 0.7, GRID_SIZE * 0.1);
+    const shopMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 }); // Brown storefront
+    const shop = new THREE.Mesh(shopGeometry, shopMaterial);
+    shop.position.set(0, GRID_SIZE * 0.35, GRID_SIZE * 0.45);
+    buildingGroup.add(shop);
+    
+    return buildingGroup;
+}
+
+function createBusTop(x, y) {
+    const busGroup = new THREE.Group();
+    
+    // Main bus body (white/cream color like Parisian buses)
+    const busGeometry = new THREE.BoxGeometry(GRID_SIZE * 0.85, GRID_SIZE * 0.5, GRID_SIZE * 0.4);
+    const busMaterial = new THREE.MeshLambertMaterial({ color: 0xF0F0F0 }); // Light gray/white
+    const bus = new THREE.Mesh(busGeometry, busMaterial);
+    bus.position.y = GRID_SIZE * 0.25;
+    bus.castShadow = true;
+    bus.receiveShadow = true;
+    busGroup.add(bus);
+    
+    // Bus roof (slightly darker)
+    const roofGeometry = new THREE.BoxGeometry(GRID_SIZE * 0.9, GRID_SIZE * 0.05, GRID_SIZE * 0.45);
+    const roofMaterial = new THREE.MeshLambertMaterial({ color: 0xD0D0D0 });
+    const roof = new THREE.Mesh(roofGeometry, roofMaterial);
+    roof.position.y = GRID_SIZE * 0.52;
+    busGroup.add(roof);
+    
+    // Bus windows (dark blue/black)
+    const windowMaterial = new THREE.MeshLambertMaterial({ color: 0x1a1a3a });
+    const windowGeometry = new THREE.BoxGeometry(GRID_SIZE * 0.75, GRID_SIZE * 0.2, 0.02);
+    
+    // Front and back windows
+    const frontWindow = new THREE.Mesh(windowGeometry, windowMaterial);
+    frontWindow.position.set(0, GRID_SIZE * 0.35, GRID_SIZE * 0.21);
+    busGroup.add(frontWindow);
+    
+    const backWindow = new THREE.Mesh(windowGeometry, windowMaterial);
+    backWindow.position.set(0, GRID_SIZE * 0.35, -GRID_SIZE * 0.21);
+    busGroup.add(backWindow);
+    
+    // Side windows
+    const sideWindowGeometry = new THREE.BoxGeometry(0.02, GRID_SIZE * 0.2, GRID_SIZE * 0.3);
+    const leftWindow = new THREE.Mesh(sideWindowGeometry, windowMaterial);
+    leftWindow.position.set(-GRID_SIZE * 0.42, GRID_SIZE * 0.35, 0);
+    busGroup.add(leftWindow);
+    
+    const rightWindow = new THREE.Mesh(sideWindowGeometry, windowMaterial);
+    rightWindow.position.set(GRID_SIZE * 0.42, GRID_SIZE * 0.35, 0);
+    busGroup.add(rightWindow);
+    
+    // Bus door (darker area)
+    const doorGeometry = new THREE.BoxGeometry(0.02, GRID_SIZE * 0.35, GRID_SIZE * 0.15);
+    const doorMaterial = new THREE.MeshLambertMaterial({ color: 0x404040 });
+    const door = new THREE.Mesh(doorGeometry, doorMaterial);
+    door.position.set(GRID_SIZE * 0.43, GRID_SIZE * 0.175, GRID_SIZE * 0.1);
+    busGroup.add(door);
+    
+    // Wheels (black cylinders)
+    const wheelGeometry = new THREE.CylinderGeometry(0.08, 0.08, 0.1, 8);
+    const wheelMaterial = new THREE.MeshLambertMaterial({ color: 0x202020 });
+    
+    // Front wheels
+    const frontLeftWheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+    frontLeftWheel.position.set(-GRID_SIZE * 0.35, 0.08, GRID_SIZE * 0.15);
+    frontLeftWheel.rotation.z = Math.PI / 2;
+    busGroup.add(frontLeftWheel);
+    
+    const frontRightWheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+    frontRightWheel.position.set(GRID_SIZE * 0.35, 0.08, GRID_SIZE * 0.15);
+    frontRightWheel.rotation.z = Math.PI / 2;
+    busGroup.add(frontRightWheel);
+    
+    // Back wheels
+    const backLeftWheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+    backLeftWheel.position.set(-GRID_SIZE * 0.35, 0.08, -GRID_SIZE * 0.15);
+    backLeftWheel.rotation.z = Math.PI / 2;
+    busGroup.add(backLeftWheel);
+    
+    const backRightWheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+    backRightWheel.position.set(GRID_SIZE * 0.35, 0.08, -GRID_SIZE * 0.15);
+    backRightWheel.rotation.z = Math.PI / 2;
+    busGroup.add(backRightWheel);
+    
+    // Bus number/destination display (orange/red like Parisian buses)
+    const displayGeometry = new THREE.BoxGeometry(GRID_SIZE * 0.3, GRID_SIZE * 0.08, 0.02);
+    const displayMaterial = new THREE.MeshLambertMaterial({ color: 0xFF6600 }); // Orange
+    const display = new THREE.Mesh(displayGeometry, displayMaterial);
+    display.position.set(0, GRID_SIZE * 0.46, GRID_SIZE * 0.22);
+    busGroup.add(display);
+    
+    return busGroup;
+}
+
+function createGreenBin(x, y) {
+    const binGroup = new THREE.Group();
+    
+    // Main bin body (green color like Parisian waste bins)
+    const binGeometry = new THREE.CylinderGeometry(GRID_SIZE * 0.3, GRID_SIZE * 0.35, GRID_SIZE * 0.6, 12);
+    const binMaterial = new THREE.MeshLambertMaterial({ color: 0x2D5016 }); // Dark green
+    const bin = new THREE.Mesh(binGeometry, binMaterial);
+    bin.position.y = GRID_SIZE * 0.3;
+    bin.castShadow = true;
+    bin.receiveShadow = true;
+    binGroup.add(bin);
+    
+    // Bin lid (slightly lighter green)
+    const lidGeometry = new THREE.CylinderGeometry(GRID_SIZE * 0.32, GRID_SIZE * 0.32, GRID_SIZE * 0.05, 12);
+    const lidMaterial = new THREE.MeshLambertMaterial({ color: 0x3A6B1E }); // Lighter green
+    const lid = new THREE.Mesh(lidGeometry, lidMaterial);
+    lid.position.y = GRID_SIZE * 0.625;
+    binGroup.add(lid);
+    
+    // Lid handle (dark gray/black)
+    const handleGeometry = new THREE.BoxGeometry(GRID_SIZE * 0.1, GRID_SIZE * 0.03, GRID_SIZE * 0.05);
+    const handleMaterial = new THREE.MeshLambertMaterial({ color: 0x2C2C2C });
+    const handle = new THREE.Mesh(handleGeometry, handleMaterial);
+    handle.position.y = GRID_SIZE * 0.66;
+    binGroup.add(handle);
+    
+    // Recycling symbol (white/light color)
+    const symbolGeometry = new THREE.RingGeometry(GRID_SIZE * 0.08, GRID_SIZE * 0.12, 3);
+    const symbolMaterial = new THREE.MeshLambertMaterial({ color: 0xFFFFFF });
+    const symbol = new THREE.Mesh(symbolGeometry, symbolMaterial);
+    symbol.position.set(0, GRID_SIZE * 0.4, GRID_SIZE * 0.32);
+    symbol.rotation.x = -Math.PI / 2;
+    symbol.rotation.z = Math.PI / 6; // Rotate for recycling triangle
+    binGroup.add(symbol);
+    
+    // Base ring (darker green for stability)
+    const baseGeometry = new THREE.CylinderGeometry(GRID_SIZE * 0.37, GRID_SIZE * 0.37, GRID_SIZE * 0.08, 12);
+    const baseMaterial = new THREE.MeshLambertMaterial({ color: 0x1F3811 }); // Very dark green
+    const base = new THREE.Mesh(baseGeometry, baseMaterial);
+    base.position.y = GRID_SIZE * 0.04;
+    binGroup.add(base);
+    
+    // Side ribs for texture (typical of waste bins)
+    for (let i = 0; i < 6; i++) {
+        const ribGeometry = new THREE.BoxGeometry(GRID_SIZE * 0.02, GRID_SIZE * 0.5, GRID_SIZE * 0.02);
+        const ribMaterial = new THREE.MeshLambertMaterial({ color: 0x1F3811 });
+        const rib = new THREE.Mesh(ribGeometry, ribMaterial);
+        
+        const angle = (i / 6) * Math.PI * 2;
+        rib.position.set(
+            Math.cos(angle) * GRID_SIZE * 0.33,
+            GRID_SIZE * 0.3,
+            Math.sin(angle) * GRID_SIZE * 0.33
+        );
+        binGroup.add(rib);
+    }
+    
+    // Small wheels at the bottom (if it's a wheeled bin)
+    const wheelGeometry = new THREE.CylinderGeometry(0.04, 0.04, 0.03, 8);
+    const wheelMaterial = new THREE.MeshLambertMaterial({ color: 0x404040 });
+    
+    const wheel1 = new THREE.Mesh(wheelGeometry, wheelMaterial);
+    wheel1.position.set(GRID_SIZE * 0.25, 0.04, 0);
+    wheel1.rotation.z = Math.PI / 2;
+    binGroup.add(wheel1);
+    
+    const wheel2 = new THREE.Mesh(wheelGeometry, wheelMaterial);
+    wheel2.position.set(-GRID_SIZE * 0.25, 0.04, 0);
+    wheel2.rotation.z = Math.PI / 2;
+    binGroup.add(wheel2);
+    
+    return binGroup;
+}
+
 function createTileMesh(tileType, x, y) {
     let geometry, material, mesh;
     
@@ -637,18 +877,21 @@ function createTileMesh(tileType, x, y) {
             break;
             
         case TileType.WALL:
-            geometry = new THREE.BoxGeometry(GRID_SIZE * 0.9, GRID_SIZE, GRID_SIZE * 0.9);
-            material = materials.wall;
+            // Create a Haussmannian building facade instead of simple box
+            mesh = createHaussmannianBuilding(x, y);
+            return mesh;
             break;
             
         case TileType.FULL_COVER:
-            geometry = new THREE.BoxGeometry(GRID_SIZE * 0.9, GRID_SIZE * 0.6, GRID_SIZE * 0.9);
-            material = materials.fullCover;
+            // Create a bus top instead of simple box
+            mesh = createBusTop(x, y);
+            return mesh;
             break;
             
         case TileType.HALF_COVER:
-            geometry = new THREE.BoxGeometry(GRID_SIZE * 0.7, GRID_SIZE * 0.3, GRID_SIZE * 0.7);
-            material = materials.halfCover;
+            // Create a green waste bin instead of simple box
+            mesh = createGreenBin(x, y);
+            return mesh;
             break;
             
         case TileType.FIRE:
@@ -812,9 +1055,12 @@ function onMouseDown(event) {
             exitTargetingMode(); // Exit targeting if selecting new unit
             selectUnit(clickedUnit);
             return;
-        } else if (targetingMode === 'attack' && clickedUnit && clickedUnit.faction !== currentFaction) {
-            // Direct attack on enemy unit
-            if (selectedUnit.canAttack(clickedUnit.position)) {
+        } else if (clickedUnit && clickedUnit.faction !== currentFaction) {
+            // Show enemy information
+            showEnemyInfo(clickedUnit);
+            
+            // If in attack mode, try to attack
+            if (targetingMode === 'attack' && selectedUnit && selectedUnit.canAttack(clickedUnit.position)) {
                 tryAttack(clickedUnit);
                 exitTargetingMode();
                 return;
@@ -958,6 +1204,52 @@ function selectUnit(unit) {
     updateUI();
     addCombatLog(`Selected ${unit.getName()}`);
     playSound('select');
+}
+
+function showEnemyInfo(enemyUnit) {
+    const unitInfoElement = document.getElementById('selectedUnitData');
+    const coverBonus = gameMap.getTile(enemyUnit.position).providesCover();
+    const coverText = coverBonus > 0 ? ` (${Math.floor(coverBonus * 100)}% cover)` : '';
+    
+    unitInfoElement.innerHTML = `
+        <div><strong>${enemyUnit.getName()} (Enemy)</strong></div>
+        <div class="health-bar">
+            <div class="health-fill" style="width: ${(enemyUnit.hp / enemyUnit.maxHp) * 100}%"></div>
+        </div>
+        <div>HP: ${enemyUnit.hp}/${enemyUnit.maxHp}${coverText}</div>
+        <div>AP: ${enemyUnit.ap}/${enemyUnit.maxAp}</div>
+        <div>Damage: ${enemyUnit.damage}</div>
+        <div>Range: ${enemyUnit.range}</div>
+        <div>Move: ${enemyUnit.moveRange}</div>
+        <div style="color: #ff6666; margin-top: 10px;">⚠️ Enemy Unit</div>
+    `;
+    
+    // Highlight the enemy temporarily
+    highlightEnemy(enemyUnit);
+}
+
+function highlightEnemy(enemyUnit) {
+    // Create a temporary red highlight for the enemy
+    const enemyHighlight = new THREE.Mesh(
+        new THREE.RingGeometry(0.8, 1.2, 16),
+        new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.7 })
+    );
+    enemyHighlight.position.set(
+        enemyUnit.position.x * GRID_SIZE,
+        0.04,
+        enemyUnit.position.y * GRID_SIZE
+    );
+    enemyHighlight.rotation.x = -Math.PI / 2;
+    
+    // Add to highlight group temporarily
+    highlightGroup.add(enemyHighlight);
+    
+    // Remove after 2 seconds if no unit is selected, or immediately if a unit is selected
+    setTimeout(() => {
+        if (!selectedUnit) {
+            highlightGroup.remove(enemyHighlight);
+        }
+    }, 2000);
 }
 
 function updateHighlights() {
@@ -1605,6 +1897,9 @@ function endTurn() {
     // Exit any targeting mode
     exitTargetingMode();
     
+    // Apply fire damage to all units standing in fire
+    applyFireDamage();
+    
     // Reset AP for current faction
     units.forEach(unit => {
         if (unit.faction === currentFaction) {
@@ -1625,6 +1920,36 @@ function endTurn() {
     updateHighlights();
     updateUI();
     checkWinConditions();
+}
+
+function applyFireDamage() {
+    const unitsToRemove = [];
+    
+    units.forEach(unit => {
+        if (unit.alive) {
+            const tile = gameMap.getTile(unit.position);
+            if (tile && tile.type === TileType.FIRE) {
+                const fireDamage = 25; // Fire damage per turn
+                unit.takeDamage(fireDamage);
+                createDamageEffect(unit.position, fireDamage);
+                addCombatLog(`${unit.getName()} takes ${fireDamage} fire damage!`);
+                playSound('damage');
+                
+                if (!unit.alive) {
+                    unitsToRemove.push(unit);
+                    addCombatLog(`${unit.getName()} is burned to death!`);
+                }
+            }
+        }
+    });
+    
+    // Remove dead units
+    unitsToRemove.forEach(unit => {
+        gameMap.removeUnit(unit);
+        if (unit.mesh) {
+            unitsGroup.remove(unit.mesh);
+        }
+    });
 }
 
 function aiTurn() {
