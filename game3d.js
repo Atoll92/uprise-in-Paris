@@ -376,8 +376,8 @@ class GameMap {
 function initThreeJS() {
     // Scene
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x87CEEB); // Sky blue background for daytime Parisian atmosphere
-    scene.fog = new THREE.Fog(0x87CEEB, 50, 200); // Add atmospheric fog
+    scene.background = new THREE.Color(0x2a2a3e); // Lighter dark blue atmosphere
+    scene.fog = new THREE.Fog(0x2a2a3e, 40, 180); // Lighter fog for better visibility
     
     // Camera - Isometric view
     const aspect = window.innerWidth / window.innerHeight;
@@ -426,12 +426,12 @@ function initThreeJS() {
 }
 
 function setupLighting() {
-    // Bright ambient light to ensure whole scene is visible
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); // Bright white ambient light
+    // Brighter ambient light for better visibility
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.75); // Much brighter white ambient
     scene.add(ambientLight);
     
-    // Main directional light (sun)
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    // Main directional light (stronger)
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
     directionalLight.position.set(50, 50, 25);
     directionalLight.castShadow = true;
     directionalLight.shadow.mapSize.width = 2048;
@@ -444,13 +444,13 @@ function setupLighting() {
     directionalLight.shadow.camera.bottom = -50;
     scene.add(directionalLight);
     
-    // Secondary fill light to eliminate dark spots
-    const fillLight = new THREE.DirectionalLight(0xffffff, 0.4);
+    // Secondary fill light
+    const fillLight = new THREE.DirectionalLight(0xffffff, 0.6);
     fillLight.position.set(-30, 40, -20);
     scene.add(fillLight);
     
     // Hemisphere light for natural outdoor lighting
-    const hemisphereLight = new THREE.HemisphereLight(0x87CEEB, 0x545454, 0.6);
+    const hemisphereLight = new THREE.HemisphereLight(0x87CEEB, 0x545454, 0.8);
     scene.add(hemisphereLight);
 }
 
@@ -538,11 +538,11 @@ function createMaterials() {
     materials = {
         // Tile materials - enhanced for Parisian street atmosphere
         empty: new THREE.MeshLambertMaterial({ 
-            color: 0x6B6B6B, // Darker asphalt color
+            color: 0x3a3a4a, // Darker wet asphalt with blue tint
             roughness: 0.8,
             metalness: 0.1
         }),
-        wall: new THREE.MeshLambertMaterial({ color: 0x555555 }),
+        wall: new THREE.MeshLambertMaterial({ color: 0x6a5a4a }),
         fullCover: new THREE.MeshLambertMaterial({ color: 0x8B4513 }),
         halfCover: new THREE.MeshLambertMaterial({ color: 0xA0A0A0 }),
         fire: new THREE.MeshLambertMaterial({ color: 0xff4400, emissive: 0x331100 }),
@@ -577,7 +577,7 @@ function createMaterials() {
             
             // Update the existing material with texture and natural street color
             materials.empty.map = groundTexture;
-            materials.empty.color.setHex(0x7A7A7A); // Parisian asphalt gray tone
+            materials.empty.color.setHex(0x4a4a5a); // Darker nighttime asphalt
             materials.empty.needsUpdate = true;
             
             // Recreate the map if it was already rendered with the old material
@@ -599,7 +599,7 @@ function createMaterials() {
             console.log('Then open: http://localhost:8000');
             
             // Update fallback material to match Parisian street colors
-            materials.empty.color.setHex(0x6B6B6B); // Match darker asphalt gray
+            materials.empty.color.setHex(0x3a3a4a); // Match darker wet asphalt
             materials.empty.needsUpdate = true;
             
             // Force recreation of the map with new color
@@ -639,26 +639,26 @@ function create3DMap() {
 function createHaussmannianBuilding(x, y) {
     const buildingGroup = new THREE.Group();
     
-    // Main building structure (cream/beige Haussmannian color)
+    // Main building structure (warm terracotta/sandstone Haussmannian color)
     const buildingGeometry = new THREE.BoxGeometry(GRID_SIZE * 0.95, GRID_SIZE * 3, GRID_SIZE * 0.95);
-    const buildingMaterial = new THREE.MeshLambertMaterial({ color: 0xF5E6D3 }); // Cream color
+    const buildingMaterial = new THREE.MeshLambertMaterial({ color: 0xC19A6B }); // Warm sandstone color
     const building = new THREE.Mesh(buildingGeometry, buildingMaterial);
     building.position.y = GRID_SIZE * 1.5;
     building.castShadow = true;
     building.receiveShadow = true;
     buildingGroup.add(building);
     
-    // Mansard roof (dark gray slate)
+    // Mansard roof (blue-gray slate with slight purple tint)
     const roofGeometry = new THREE.ConeGeometry(GRID_SIZE * 0.7, GRID_SIZE * 0.4, 4);
-    const roofMaterial = new THREE.MeshLambertMaterial({ color: 0x404040 });
+    const roofMaterial = new THREE.MeshLambertMaterial({ color: 0x4A5568 });
     const roof = new THREE.Mesh(roofGeometry, roofMaterial);
     roof.position.y = GRID_SIZE * 3.2;
     roof.rotation.y = Math.PI / 4; // Rotate 45 degrees for diamond shape
     roof.castShadow = true;
     buildingGroup.add(roof);
     
-    // Windows (dark blue/black)
-    const windowMaterial = new THREE.MeshLambertMaterial({ color: 0x1a1a3a });
+    // Windows (warm amber glow from interior lights)
+    const windowMaterial = new THREE.MeshLambertMaterial({ color: 0xFFA500, emissive: 0x664400, emissiveIntensity: 0.3 });
     const windowGeometry = new THREE.BoxGeometry(0.2, 0.3, 0.05);
     
     // Add windows on different floors
@@ -681,8 +681,8 @@ function createHaussmannianBuilding(x, y) {
         }
     }
     
-    // Wrought iron balconies (dark metal)
-    const balconyMaterial = new THREE.MeshLambertMaterial({ color: 0x2C2C2C });
+    // Wrought iron balconies (aged copper/bronze)
+    const balconyMaterial = new THREE.MeshLambertMaterial({ color: 0x5C4033 });
     const balconyGeometry = new THREE.BoxGeometry(0.8, 0.05, 0.15);
     
     for (let floor = 1; floor < 3; floor++) {
@@ -698,9 +698,9 @@ function createHaussmannianBuilding(x, y) {
         buildingGroup.add(railing);
     }
     
-    // Ground floor shop front (different color)
+    // Ground floor shop front (deep red wine color)
     const shopGeometry = new THREE.BoxGeometry(GRID_SIZE * 0.9, GRID_SIZE * 0.7, GRID_SIZE * 0.1);
-    const shopMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 }); // Brown storefront
+    const shopMaterial = new THREE.MeshLambertMaterial({ color: 0x722F37 }); // Deep wine red storefront
     const shop = new THREE.Mesh(shopGeometry, shopMaterial);
     shop.position.set(0, GRID_SIZE * 0.35, GRID_SIZE * 0.45);
     buildingGroup.add(shop);
@@ -1210,8 +1210,14 @@ function showEnemyInfo(enemyUnit) {
     const unitInfoElement = document.getElementById('selectedUnitData');
     const coverBonus = gameMap.getTile(enemyUnit.position).providesCover();
     const coverText = coverBonus > 0 ? ` (${Math.floor(coverBonus * 100)}% cover)` : '';
+    const thumbnailPath = getUnitThumbnail(enemyUnit.type);
+    const thumbnailHtml = thumbnailPath ? 
+        `<div style="text-align: center; margin-bottom: 10px;">
+            <img src="${thumbnailPath}" alt="${enemyUnit.getName()}" style="width: 80%; height: auto; max-width: 160px; image-rendering: pixelated;">
+        </div>` : '';
     
     unitInfoElement.innerHTML = `
+        ${thumbnailHtml}
         <div><strong>${enemyUnit.getName()} (Enemy)</strong></div>
         <div class="health-bar">
             <div class="health-fill" style="width: ${(enemyUnit.hp / enemyUnit.maxHp) * 100}%"></div>
@@ -2272,7 +2278,14 @@ function updateUI() {
     const unitInfoElement = document.getElementById('selectedUnitData');
     if (selectedUnit) {
         const abilityInfo = getAbilityInfo(selectedUnit.type);
+        const thumbnailPath = getUnitThumbnail(selectedUnit.type);
+        const thumbnailHtml = thumbnailPath ? 
+            `<div style="text-align: center; margin-bottom: 10px;">
+                <img src="${thumbnailPath}" alt="${selectedUnit.getName()}" style="width: 80%; height: auto; max-width: 160px; image-rendering: pixelated;">
+            </div>` : '';
+        
         unitInfoElement.innerHTML = `
+            ${thumbnailHtml}
             <div><strong>${selectedUnit.getName()}</strong></div>
             <div class="health-bar">
                 <div class="health-fill" style="width: ${(selectedUnit.hp / selectedUnit.maxHp) * 100}%"></div>
@@ -2298,6 +2311,23 @@ function getAbilityInfo(unitType) {
         [UnitType.RIOTER_SHIELD]: "Deploy Cover (Q)"
     };
     return abilities[unitType] || null;
+}
+
+function getUnitThumbnail(unitType) {
+    const thumbnails = {
+        [UnitType.RIOTER_BRAWLER]: "RIOTER_BRAWLER_no_text.png",
+        [UnitType.RIOTER_MOLOTOV]: "RIOTER_MOLOTOV_no_text.png",
+        [UnitType.RIOTER_LEADER]: "RIOTER_LEADER_no_text(1).png",
+        [UnitType.RIOTER_MEDIC]: "RIOTER_MEDIC_no_text.png",
+        [UnitType.RIOTER_HACKER]: "RIOTER_HACKER_no_text.png",
+        [UnitType.RIOTER_SHIELD]: "RIOTER_SHIELD_no_text.png",
+        [UnitType.POLICE_OFFICER]: "POLICE_OFFICER_no_text.png",
+        [UnitType.POLICE_SHIELD]: "", // Image not found, will use placeholder
+        [UnitType.POLICE_SNIPER]: "POLICE_SNIPER_no_text.png",
+        [UnitType.POLICE_TEARGAS]: "POLICE_TEARGAS_no_text.png",
+        [UnitType.POLICE_DRONE]: "POLICE_DRONE_no_text.png"
+    };
+    return thumbnails[unitType] || "";
 }
 
 function addCombatLog(message) {
